@@ -2,8 +2,12 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:ChatApp"
+             xmlns:viewModels="clr-namespace:ChatApp.ViewModels"
+             xmlns:views="clr-namespace:ChatApp.Views"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <DataTemplate DataType="{x:Type viewModels:ChatViewModel}">
+            <views:ChatView/>
+        </DataTemplate>
     </Application.Resources>
 </Application>
