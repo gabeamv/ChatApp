@@ -33,9 +33,9 @@ namespace ChatApp.ViewModels
 
         public async Task TestConnect()
         {
-            using Socket chatSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Socket chatSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             CancellationToken cancellationToken = default;
-            await chatSocket.ConnectAsync("localhost", 8000, cancellationToken);
+            await chatSocket.ConnectAsync("127.0.0.1", 8000, cancellationToken);
             // Message test to the server.
             byte[] test = Encoding.ASCII.GetBytes("Hello World, I Am Here.");
             int bytesSent = await chatSocket.SendAsync(test);

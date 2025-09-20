@@ -13,7 +13,7 @@
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBox Grid.Column="1" Text="{Binding FeedbackMessage}" BorderBrush="Black" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Button Content="Test Connection" Height="25" Width="100" Margin="0, 25, 0, 0"/>
+            <Button Content="Test Connection" Height="25" Width="100" Margin="0, 25, 0, 0" Command="{Binding Test}"/>
         </StackPanel>
     </Grid>
 </UserControl>
