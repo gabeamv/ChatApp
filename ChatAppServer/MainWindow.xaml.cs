@@ -61,7 +61,7 @@ namespace ChatAppServer
                 {
                     message = Encoding.ASCII.GetString(bytes, 0, i);
                     FeedbackMessage = $"Message received: '{message}'";
-                    byte[] msg = Encoding.ASCII.GetBytes(message.ToUpper());
+                    byte[] msg = Encoding.ASCII.GetBytes(message);
                     stream.Write(msg, 0, msg.Length);
                 }
                 

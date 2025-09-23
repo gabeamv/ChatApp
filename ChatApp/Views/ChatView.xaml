@@ -11,9 +11,48 @@
             <ColumnDefinition/>
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
-        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBox Grid.Column="1" Text="{Binding FeedbackMessage}" BorderBrush="Black" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Button Content="Test Connection" Height="25" Width="100" Margin="0, 25, 0, 0" Command="{Binding Test}"/>
-        </StackPanel>
+        <Grid Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Orientation="Vertical" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0, 0, 0, 5">
+                    <TextBlock Text="IP Address: "/>
+                    <TextBox Text="{Binding IP}" Width="100"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0, 0, 0, 5">
+                    <TextBlock Text="Port: "/>
+                    <TextBox Text="{Binding Port}" Width="100"/>
+                </StackPanel>
+                <Button Content="Connect" Command="{Binding ServerConnectCommand}"/>
+                <TextBlock Text="{Binding FeedbackMessage}" Margin="0, 5, 0, 0" Width="150" TextWrapping="Wrap" TextAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+        <Grid Grid.Column="1" Background="White">
+            <Grid.RowDefinitions>
+                <RowDefinition Height=".9*"/>
+                <RowDefinition Height=".1*"/>
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <ScrollViewer Name="ScrollViewer" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Auto" CanContentScroll="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <ListView Name="Chat" ItemsSource="{Binding ServerMessages}" IsEnabled="False" BorderThickness="0" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock TextWrapping="Wrap" Width="360" Margin="0,0,20,0">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0}: {1}">
+                                            <Binding Path="Sender"/>
+                                            <Binding Path="Message"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </ScrollViewer>
+            </Grid>
+            <StackPanel Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Orientation="Horizontal">
+                <Button Margin="5, 5, 5, 5" Width="50" Height="25" Content="Send" Command="{Binding SendMessageCommand}"/>
+                <TextBox Text="{Binding Message}" Height="25" Width="325" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Grid>
+        
     </Grid>
 </UserControl>
