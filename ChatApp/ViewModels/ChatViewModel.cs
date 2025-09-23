@@ -108,6 +108,7 @@ namespace ChatApp.ViewModels
             int numBytesReceived = await _chatSocket.ReceiveAsync(response, SocketFlags.None, _cancelToken);
             int numCharsReceived = Encoding.ASCII.GetChars(response, 0, numBytesReceived, responseChar, 0);
             _ServerMessages.Add(new Payload { Sender = "Gabe", Message = new string(responseChar, 0, numCharsReceived)});
+            Message = string.Empty;
         }
 
         public async Task TestConnect()
