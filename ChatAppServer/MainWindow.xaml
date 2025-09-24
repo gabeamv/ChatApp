@@ -5,12 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ChatAppServer"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        ResizeMode="NoResize"
+        Title="ChatApp Server" Height="450" Width="800">
     <Grid>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock Height="25" Margin="0, 0, 0, 10" Text="{Binding FeedbackMessage}"/>
-            <Button Content="Test Start Server" Height="25" Width="100" HorizontalAlignment="Center" VerticalAlignment="Center" Command="{Binding RunTestServer}"/>
-        </StackPanel>
-        
+        <ContentControl Content="{Binding CurrentViewModel}"/>
     </Grid>
 </Window>
