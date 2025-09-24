@@ -16,12 +16,14 @@ namespace ChatAppServer.ViewModels
 {
     public class ServerConfigViewModel : INotifyPropertyChanged
     {
-
+        public const int MAX_BYTES = 1000;
+        public const int MAX_CHAR = 1000;
         public ICommand RunTestServer { get; }
         private string _FeedbackMessage = "";
         private Socket _serverSocket;
-        private string IP = "";
-        private string Port = "";
+        private string IP = "127.0.0.1";
+        private string Port = "8000";
+        private CancellationToken _cancelToken = default;
 
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -34,20 +36,40 @@ namespace ChatAppServer.ViewModels
 
         public ServerConfigViewModel(NavService nav)
         {
-            RunTestServer = new RelayCommand(async () => await TestServer());
+            RunTestServer = new RelayCommand(async () => await StartServer());
         }
-
-        private void StartServer()
+        // TODO: socket shutdown to end server connection gracefully, then close.
+        private async Task StartServer()
         {
+            FeedbackMessage = "I am definitely here.";
             _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             long ipLong;
             int portNum;
-            if (int.TryParse(Port, out portNum) && long.TryParse(IP, out ipLong))
+            if (int.TryParse(Port, out portNum) && long.TryParse(IP.Replace(".", ""), out ipLong))
             {
-                _serverSocket.Bind(new IPEndPoint(ipLong, portNum));
+                _serverSocket.Bind(new IPEndPoint(IPAddress.Parse(IP), portNum));
+                FeedbackMessage = "I am here";
             }
             else { return; }
             _serverSocket.Listen();
+            FeedbackMessage = "Server has started!";
+            while (true)
+            {
+                Socket clientSocket = await _serverSocket.AcceptAsync();
+                _ = ReceiveData(clientSocket);
+            }
+        }
+        private async Task ReceiveData(Socket clientSocket)
+        {
+            byte[] receivedData = new byte[MAX_BYTES];
+            string? message = null;
+            int numReceivedBytes;
+            while ((numReceivedBytes = await clientSocket.ReceiveAsync(receivedData, SocketFlags.None, _cancelToken)) != 0)
+            {
+                message = Encoding.ASCII.GetString(receivedData);
+                FeedbackMessage = message;
+                await clientSocket.SendAsync(receivedData);
+            }
         }
 
         public async Task TestServer()

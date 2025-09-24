@@ -19,7 +19,7 @@ namespace ChatApp.ViewModels
     public class ChatViewModel : INotifyPropertyChanged
     {
         public const int MAX_BYTES = 1000;
-        public const int MAX_CHAR = MAX_BYTES / 2;
+        public const int MAX_CHAR = 1000;
         private NavService _nav;
         private string _FeedbackMessage = "";
         private string _Message = "";
