@@ -22,6 +22,7 @@ namespace ChatApp.Views
     public partial class ChatView : UserControl
     {
         private INotifyCollectionChanged? _currentCollection;
+        private object _lock;
 
         public ChatView()
         {
@@ -52,6 +53,8 @@ namespace ChatApp.Views
 
         private void MessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            
+            
             if (ScrollViewer.ScrollableHeight == 0) return;
             // If the action that was done on the messages was adding a message...
             if (e.Action == NotifyCollectionChangedAction.Add)
@@ -59,7 +62,10 @@ namespace ChatApp.Views
                 // Calculate the distance of the scroll wheel from the bottom.
                 double dist = ScrollViewer.ScrollableHeight - ScrollViewer.VerticalOffset;
                 // If scroll wheel 100 pixels from the bottom, scroll wheel goes to the bottom
-                if (dist <= 100) ScrollViewer.ScrollToBottom();
+                // This MessagesChanged function updates the collectionview of the chat, which is scrollable.
+                // It is updated in the ChatViewModel on a background thread. When scrolling to the bottom,
+                // we need to give back control to the UI thread.
+                if (dist <= 100) Dispatcher.BeginInvoke(() => ScrollViewer.ScrollToBottom());
             }
         }
     }

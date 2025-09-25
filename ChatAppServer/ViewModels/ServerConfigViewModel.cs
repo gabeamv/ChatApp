@@ -11,6 +11,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using ChatAppServer.Services;
+using System.Net.WebSockets;
+using System.Collections.Concurrent;
 
 namespace ChatAppServer.ViewModels
 {
@@ -24,9 +26,18 @@ namespace ChatAppServer.ViewModels
         private string IP = "127.0.0.1";
         private string Port = "8000";
         private CancellationToken _cancelToken = default;
-
-
+        private ConcurrentBag<Socket> _clientConnections = new ConcurrentBag<Socket>();
+        public event EventHandler<MessageSentArgs> MessageSent;
         public event PropertyChangedEventHandler? PropertyChanged;
+
+        public class MessageSentArgs : EventArgs
+        {
+            public byte[] Response;
+            public MessageSentArgs(byte[] response)
+            {
+                Response = response;
+            }
+        }
 
         public string FeedbackMessage
         {
@@ -56,6 +67,7 @@ namespace ChatAppServer.ViewModels
             while (true)
             {
                 Socket clientSocket = await _serverSocket.AcceptAsync();
+                _clientConnections.Add(clientSocket);
                 _ = ReceiveData(clientSocket);
             }
         }
@@ -68,8 +80,24 @@ namespace ChatAppServer.ViewModels
             {
                 message = Encoding.ASCII.GetString(receivedData);
                 FeedbackMessage = message;
-                await clientSocket.SendAsync(receivedData);
+                byte[] response = new byte[numReceivedBytes];
+                Array.Copy(receivedData, response, numReceivedBytes);
+                Array.Clear(receivedData, 0, numReceivedBytes);
+                await SendResponse(response);
             }
+            _clientConnections.TryTake(out Socket removedSocket);
+            clientSocket.Shutdown(SocketShutdown.Both);
+            clientSocket.Dispose();
+        }
+
+        private async Task SendResponse(byte[] response)
+        {
+            List<Task> sendResponse = new List<Task>();
+            foreach (Socket client in _clientConnections)
+            {
+                sendResponse.Add(Task.Run(() => client.SendAsync(response)));
+            }
+            await Task.WhenAll(sendResponse);
         }
 
         public async Task TestServer()

@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows.Data;
 using ChatApp.Models;
 using System.Windows.Controls;
 
@@ -30,6 +31,8 @@ namespace ChatApp.ViewModels
         private string _Port = "";
         private Socket _chatSocket;
         private CancellationToken _cancelToken = default;
+        private object _lock = new object();
+        private Task _receive;
 
         public ICommand Test { get; } 
         public ICommand ServerConnectCommand { get; }
@@ -78,6 +81,7 @@ namespace ChatApp.ViewModels
             Test = new RelayCommand(async () => await TestConnect());
             ServerConnectCommand = new RelayCommand(async () => await ServerConnect());
             SendMessageCommand = new RelayCommand(async () => await SendMessage());
+            BindingOperations.EnableCollectionSynchronization(_ServerMessages, _lock);
         }
         public void TestMessages()
         {
@@ -97,6 +101,7 @@ namespace ChatApp.ViewModels
             {
                 FeedbackMessage = "Faulty port number.";
             }
+            await Task.Run(() => ReceiveMessage());
         }
 
         public async Task SendMessage()
@@ -104,12 +109,30 @@ namespace ChatApp.ViewModels
             byte[] message = Encoding.ASCII.GetBytes(Message);
             byte[] response = new byte[MAX_BYTES];
             char[] responseChar = new char[MAX_CHAR];
+            if (message.Length > MAX_BYTES)
+            {
+                Message = "";
+                return;
+            }
             int sent = await _chatSocket.SendAsync(message);
-            int numBytesReceived = await _chatSocket.ReceiveAsync(response, SocketFlags.None, _cancelToken);
-            int numCharsReceived = Encoding.ASCII.GetChars(response, 0, numBytesReceived, responseChar, 0);
-            _ServerMessages.Add(new Payload { Sender = "Gabe", Message = new string(responseChar, 0, numCharsReceived)});
-            Message = string.Empty;
+            Message = "";
         }
+
+        public async Task ReceiveMessage() 
+        {
+            int numBytesReceived;
+            byte[] response = new byte[MAX_BYTES];
+            char[] responseChar = new char[MAX_CHAR];
+            while ((numBytesReceived = await _chatSocket.ReceiveAsync(response, SocketFlags.None, _cancelToken)) != 0)
+            {
+                int numCharsReceived = Encoding.ASCII.GetChars(response, 0, numBytesReceived, responseChar, 0);
+                _ServerMessages.Add(new Payload { Sender = "Gabe", Message = new string(responseChar, 0, numCharsReceived) });
+            }
+            _chatSocket.Shutdown(SocketShutdown.Both);
+            _chatSocket.Dispose();
+        }
+
+
 
         public async Task TestConnect()
         {
