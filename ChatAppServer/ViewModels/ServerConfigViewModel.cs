@@ -13,6 +13,8 @@ using System.Windows.Input;
 using ChatAppServer.Services;
 using System.Net.WebSockets;
 using System.Collections.Concurrent;
+using ChatAppServer.Models;
+using System.Text.Json;
 
 namespace ChatAppServer.ViewModels
 {
@@ -26,7 +28,8 @@ namespace ChatAppServer.ViewModels
         private string IP = "127.0.0.1";
         private string Port = "8000";
         private CancellationToken _cancelToken = default;
-        private ConcurrentBag<Socket> _clientConnections = new ConcurrentBag<Socket>();
+        //private ConcurrentBag<Socket> _clientConnections = new ConcurrentBag<Socket>();
+        private ConcurrentDictionary<string, Socket> _clientConnections = new ConcurrentDictionary<string, Socket>();
         public event EventHandler<MessageSentArgs> MessageSent;
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -67,37 +70,61 @@ namespace ChatAppServer.ViewModels
             while (true)
             {
                 Socket clientSocket = await _serverSocket.AcceptAsync();
-                _clientConnections.Add(clientSocket);
-                _ = ReceiveData(clientSocket);
+                string username = await InitializeUser(clientSocket);
+                _clientConnections.TryAdd(username, clientSocket);
+                _ = ReceiveData(clientSocket, username);
             }
         }
-        private async Task ReceiveData(Socket clientSocket)
+        private async Task ReceiveData(Socket clientSocket, string username)
         {
-            byte[] receivedData = new byte[MAX_BYTES];
+            byte[] messageByte = new byte[MAX_BYTES];
+            char[] messageChar = new char[MAX_CHAR];
             string? message = null;
             int numReceivedBytes;
-            while ((numReceivedBytes = await clientSocket.ReceiveAsync(receivedData, SocketFlags.None, _cancelToken)) != 0)
+            while ((numReceivedBytes = await clientSocket.ReceiveAsync(messageByte, SocketFlags.None, _cancelToken)) != 0)
             {
-                message = Encoding.ASCII.GetString(receivedData);
-                FeedbackMessage = message;
-                byte[] response = new byte[numReceivedBytes];
-                Array.Copy(receivedData, response, numReceivedBytes);
-                Array.Clear(receivedData, 0, numReceivedBytes);
-                await SendResponse(response);
+                int charCount = Encoding.ASCII.GetChars(messageByte, 0, numReceivedBytes, messageChar, 0);
+                message = new string(messageChar, 0, charCount);
+                Payload payload = new Payload(username, message);
+                string payloadJson = JsonSerializer.Serialize<Payload>(payload);
+                FeedbackMessage = payloadJson;
+                byte[] payloadJsonByte = Encoding.ASCII.GetBytes(payloadJson);
+
+                //byte[] response = new byte[numReceivedBytes];
+                //Array.Copy(receivedData, response, numReceivedBytes);
+                Array.Clear(messageByte, 0, numReceivedBytes);
+                //await SendResponse(response);
+                await SendResponse(payloadJsonByte);
             }
-            _clientConnections.TryTake(out Socket removedSocket);
+            _clientConnections.TryRemove(username, out clientSocket);
             clientSocket.Shutdown(SocketShutdown.Both);
             clientSocket.Dispose();
+            FeedbackMessage = $"{username} has disconnected.";
         }
 
         private async Task SendResponse(byte[] response)
         {
             List<Task> sendResponse = new List<Task>();
-            foreach (Socket client in _clientConnections)
+            foreach (KeyValuePair<string, Socket> client in _clientConnections)
             {
-                sendResponse.Add(Task.Run(() => client.SendAsync(response)));
+                sendResponse.Add(Task.Run(() => client.Value.SendAsync(response)));
             }
-            await Task.WhenAll(sendResponse);
+            _ = Task.WhenAll(sendResponse);
+        }
+
+        private async Task<string> InitializeUser(Socket clientSocket)
+        {
+            byte[] receivedUsernameBytes = new byte[MAX_BYTES];
+            char[] usernameChar = new char[MAX_CHAR];
+            string? username = null;
+            int numReceivedBytes;
+            while ((numReceivedBytes = await clientSocket.ReceiveAsync(receivedUsernameBytes, SocketFlags.None, _cancelToken)) != 0)
+            {
+                int charCount = Encoding.ASCII.GetChars(receivedUsernameBytes, 0, numReceivedBytes, usernameChar, 0);
+                username = new string(usernameChar, 0, charCount);
+                if (_clientConnections.TryAdd(username, clientSocket)) return username;
+            }
+            return username ?? "Something went wrong.";
         }
 
         public async Task TestServer()

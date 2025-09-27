@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ChatApp.Models
+namespace ChatAppServer.Models
 {
     public class Payload
     {
@@ -16,6 +16,5 @@ namespace ChatApp.Models
             Sender = sender;
             Message = message;
         }
-
     }
 }
