@@ -15,6 +15,7 @@ using System.Net.WebSockets;
 using System.Collections.Concurrent;
 using ChatAppServer.Models;
 using System.Text.Json;
+using System.Windows;
 
 namespace ChatAppServer.ViewModels
 {
@@ -22,11 +23,13 @@ namespace ChatAppServer.ViewModels
     {
         public const int MAX_BYTES = 1000;
         public const int MAX_CHAR = 1000;
+        public const int NUM_CONNECTIONS = 8;
+        public const string INVALID_USERNAME = "";
         public ICommand RunTestServer { get; }
         private string _FeedbackMessage = "";
         private Socket _serverSocket;
-        private string IP = "127.0.0.1";
-        private string Port = "8000";
+        private string IP = "192.168.0.119";
+        private string Port = "25566";
         private CancellationToken _cancelToken = default;
         //private ConcurrentBag<Socket> _clientConnections = new ConcurrentBag<Socket>();
         private ConcurrentDictionary<string, Socket> _clientConnections = new ConcurrentDictionary<string, Socket>();
@@ -65,13 +68,20 @@ namespace ChatAppServer.ViewModels
                 FeedbackMessage = "I am here";
             }
             else { return; }
-            _serverSocket.Listen();
+            _serverSocket.Listen(NUM_CONNECTIONS);
             FeedbackMessage = "Server has started!";
             while (true)
             {
                 Socket clientSocket = await _serverSocket.AcceptAsync();
                 string username = await InitializeUser(clientSocket);
-                _clientConnections.TryAdd(username, clientSocket);
+                if (username == INVALID_USERNAME)
+                {
+                    clientSocket.Shutdown(SocketShutdown.Both);
+                    clientSocket.Close();
+                    clientSocket.Dispose();
+                    continue;
+                }
+                FeedbackMessage = $"{username} has connected.";
                 _ = ReceiveData(clientSocket, username);
             }
         }
@@ -98,6 +108,7 @@ namespace ChatAppServer.ViewModels
             }
             _clientConnections.TryRemove(username, out clientSocket);
             clientSocket.Shutdown(SocketShutdown.Both);
+            clientSocket.Close();
             clientSocket.Dispose();
             FeedbackMessage = $"{username} has disconnected.";
         }
@@ -107,9 +118,9 @@ namespace ChatAppServer.ViewModels
             List<Task> sendResponse = new List<Task>();
             foreach (KeyValuePair<string, Socket> client in _clientConnections)
             {
-                sendResponse.Add(Task.Run(() => client.Value.SendAsync(response)));
+                sendResponse.Add(Task.Run(async() => await client.Value.SendAsync(response, _cancelToken)));
             }
-            _ = Task.WhenAll(sendResponse);
+            await Task.WhenAll(sendResponse);
         }
 
         private async Task<string> InitializeUser(Socket clientSocket)
@@ -118,13 +129,12 @@ namespace ChatAppServer.ViewModels
             char[] usernameChar = new char[MAX_CHAR];
             string? username = null;
             int numReceivedBytes;
-            while ((numReceivedBytes = await clientSocket.ReceiveAsync(receivedUsernameBytes, SocketFlags.None, _cancelToken)) != 0)
-            {
-                int charCount = Encoding.ASCII.GetChars(receivedUsernameBytes, 0, numReceivedBytes, usernameChar, 0);
-                username = new string(usernameChar, 0, charCount);
-                if (_clientConnections.TryAdd(username, clientSocket)) return username;
-            }
-            return username ?? "Something went wrong.";
+            numReceivedBytes = await clientSocket.ReceiveAsync(receivedUsernameBytes, SocketFlags.None, _cancelToken);
+
+            int charCount = Encoding.ASCII.GetChars(receivedUsernameBytes, 0, numReceivedBytes, usernameChar, 0);
+            username = new string(usernameChar, 0, charCount);
+            if (_clientConnections.TryAdd(username, clientSocket)) return username;
+            return INVALID_USERNAME;
         }
 
         public async Task TestServer()

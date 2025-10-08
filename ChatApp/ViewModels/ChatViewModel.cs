@@ -42,6 +42,7 @@ namespace ChatApp.ViewModels
         public ICommand Test { get; } 
         public ICommand ServerConnectCommand { get; }
         public ICommand SendMessageCommand { get; }
+        public ICommand Spam { get; }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -93,6 +94,7 @@ namespace ChatApp.ViewModels
             Test = new RelayCommand(async () => await TestConnect());
             ServerConnectCommand = new RelayCommand(async () => await ServerConnect());
             SendMessageCommand = new RelayCommand(async () => await SendMessage());
+            Spam = new RelayCommand(async () => await TestSpam());
             BindingOperations.EnableCollectionSynchronization(_ServerMessages, _lock);
         }
 
@@ -125,7 +127,7 @@ namespace ChatApp.ViewModels
             {
                 FeedbackMessage = "Faulty port number.";
             }
-            _ = ReceiveMessage();
+            await ReceiveMessage();
         }
 
         public async Task SendMessage()
@@ -145,15 +147,27 @@ namespace ChatApp.ViewModels
             byte[] payloadByte = new byte[MAX_BYTES];
             char[] payloadChar = new char[MAX_CHAR];
             int numBytesReceived;
-            while ((numBytesReceived = await _chatSocket.ReceiveAsync(payloadByte, SocketFlags.None, _cancelToken)) != 0)
+            try
             {
-                int charCount = Encoding.ASCII.GetChars(payloadByte, 0, numBytesReceived, payloadChar, 0);
-                string payloadJson = new string(payloadChar, 0, charCount);
-                Payload payload = JsonSerializer.Deserialize<Payload>(payloadJson, JsonOptions);
-                FeedbackMessage = $"Sender: {payload.Sender}\nMessage: {payload.Message}";
-                _ServerMessages.Add(payload);
+                while ((numBytesReceived = await _chatSocket.ReceiveAsync(payloadByte, SocketFlags.None, _cancelToken)) != 0)
+                {
+                    int charCount = Encoding.ASCII.GetChars(payloadByte, 0, numBytesReceived, payloadChar, 0);
+                    string payloadJson = new string(payloadChar, 0, charCount);
+                    Payload payload = JsonSerializer.Deserialize<Payload>(payloadJson, JsonOptions);
+                    FeedbackMessage = $"Sender: {payload.Sender}\nMessage: {payload.Message}";
+                    _ServerMessages.Add(payload);
+                }
             }
+            catch (SocketException e)
+            {
+                
+            }
+        }
+
+        public void Disconnect()
+        {
             _chatSocket.Shutdown(SocketShutdown.Both);
+            _chatSocket.Close();
             _chatSocket.Dispose();
         }
 
@@ -176,6 +190,15 @@ namespace ChatApp.ViewModels
                 FeedbackMessage = new string(responseChars, 0, charCount);
             }
             chatSocket.Dispose();
+        }
+
+        public async Task TestSpam()
+        {
+            byte[] spam = Encoding.ASCII.GetBytes("fuck you");
+            for (int i = 0; i < 1000; i++)
+            {
+                await _chatSocket.SendAsync(spam);
+            }
         }
 
         public void OnPropertyChanged([CallerMemberName] string? propertyName = null)

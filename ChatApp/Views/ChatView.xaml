@@ -27,6 +27,7 @@
                 </StackPanel>
                 <Button Content="Connect" Command="{Binding ServerConnectCommand}"/>
                 <TextBlock Text="{Binding FeedbackMessage}" Margin="0, 5, 0, 0" Width="150" TextWrapping="Wrap" TextAlignment="Center"/>
+                <Button Content="Spam" Command="{Binding Spam}"/>
             </StackPanel>
         </Grid>
         <Grid Grid.Column="1" Background="White">

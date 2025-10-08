@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,6 +25,7 @@ namespace ChatApp.Views
     {
         private INotifyCollectionChanged? _currentCollection;
         private object _lock;
+        private Window window;
 
         public ChatView()
         {
@@ -44,6 +47,8 @@ namespace ChatApp.Views
             // Check if the current data context is the chatviewmodel data context.
             if (DataContext is ChatViewModel chatViewModel && chatViewModel.ServerMessages is INotifyCollectionChanged observable)
             {
+                window = Window.GetWindow(this);
+                window.Closing += OnWindowClosing;
                 // Store the observable server messages as Inotifycollectionchanged. observable collection implements inotifycollectionchanged
                 _currentCollection = observable;
                 // subscribe to the observable server messages. when the collection changes execute the subscribed method.
@@ -51,10 +56,16 @@ namespace ChatApp.Views
             }
         }
 
+        private void OnWindowClosing(object? sender, CancelEventArgs e)
+        {
+            if (DataContext is ChatViewModel chatViewModel)
+            {
+                chatViewModel.Disconnect();
+            }
+        }
+
         private void MessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            
-            
             if (ScrollViewer.ScrollableHeight == 0) return;
             // If the action that was done on the messages was adding a message...
             if (e.Action == NotifyCollectionChangedAction.Add)
