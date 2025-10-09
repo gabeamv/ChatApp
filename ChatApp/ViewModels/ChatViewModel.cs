@@ -16,6 +16,7 @@ using ChatApp.Models;
 using System.Windows.Controls;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace ChatApp.ViewModels
 {
@@ -153,9 +154,18 @@ namespace ChatApp.ViewModels
                 {
                     int charCount = Encoding.ASCII.GetChars(payloadByte, 0, numBytesReceived, payloadChar, 0);
                     string payloadJson = new string(payloadChar, 0, charCount);
-                    Payload payload = JsonSerializer.Deserialize<Payload>(payloadJson, JsonOptions);
-                    FeedbackMessage = $"Sender: {payload.Sender}\nMessage: {payload.Message}";
-                    _ServerMessages.Add(payload);
+                    // added try/catch
+                    try
+                    {
+                        
+                        Payload payload = JsonSerializer.Deserialize<Payload>(payloadJson, JsonOptions);
+                        FeedbackMessage = $"Sender: {payload.Sender}\nMessage: {payload.Message}";
+                        _ServerMessages.Add(payload);
+                    }
+                    catch(JsonException e)
+                    {
+                        Debug.WriteLine($"Something wrong with the payload: {payloadJson}");
+                    }
                 }
             }
             catch (SocketException e)
@@ -166,6 +176,8 @@ namespace ChatApp.ViewModels
 
         public void Disconnect()
         {
+            if (_chatSocket is null) return;
+            if (!_chatSocket.Connected) return;
             _chatSocket.Shutdown(SocketShutdown.Both);
             _chatSocket.Close();
             _chatSocket.Dispose();
