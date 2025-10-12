@@ -24,6 +24,7 @@ namespace ChatApp.ViewModels
     {
         public const int MAX_BYTES = 1000;
         public const int MAX_CHAR = 1000;
+        public const int PREFIX_SIZE_BYTES = 4;
 
         private NavService _nav;
         private string _FeedbackMessage = "";
@@ -130,28 +131,71 @@ namespace ChatApp.ViewModels
             }
             await ReceiveMessage();
         }
-
+        // TODO: Implement length prefixing
         public async Task SendMessage()
         {
+            // Encode the user's inputted message.
             byte[] message = Encoding.ASCII.GetBytes(Message);
+           
             if (message.Length > MAX_BYTES)
             {
                 Message = "";
                 return;
             }
-            int sent = await _chatSocket.SendAsync(message);
+
+            // Buffer that will store the length of the message.
+            byte[] lengthBuffer = BitConverter.GetBytes(message.Length);
+            // Allocate the buffer that will store both the length of the message and the message itself.
+            byte[] messagePrefixed = new byte[lengthBuffer.Length + message.Length];
+            // Copy the lengthBuffer and the message buffer into one buffer.
+            Array.Copy(lengthBuffer, 0, messagePrefixed, 0, lengthBuffer.Length);
+            Array.Copy(message, 0, messagePrefixed, lengthBuffer.Length, message.Length);
+
+            int sent = await _chatSocket.SendAsync(messagePrefixed);
             Message = "";
         }
-
+        // TODO: Implement length prefixing
         public async Task ReceiveMessage() 
         {
-            byte[] payloadByte = new byte[MAX_BYTES];
-            char[] payloadChar = new char[MAX_CHAR];
+            byte[] bytes = new byte[MAX_BYTES];
+            //char[] payloadChar = new char[MAX_CHAR];
             int numBytesReceived;
             try
             {
-                while ((numBytesReceived = await _chatSocket.ReceiveAsync(payloadByte, SocketFlags.None, _cancelToken)) != 0)
+                while ((numBytesReceived = await _chatSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
                 {
+
+                    int i = 0;
+                    while (i < numBytesReceived)
+                    {
+                        // Read the prefix from the bytes to get the length of the message.
+                        byte[] lengthPrefix = new byte[PREFIX_SIZE_BYTES];
+                        Array.Copy(bytes, i, lengthPrefix, 0, PREFIX_SIZE_BYTES);
+                        int length = BitConverter.ToInt32(lengthPrefix);
+                        // Allocate buffers for the message in byte form and char form.
+                        byte[] jsonBytes = new byte[length];
+                        char[] jsonChar = new char[length];
+                        // Store the bytes of thee json into the buffer for json bytes.
+                        Array.Copy(bytes, i + PREFIX_SIZE_BYTES, jsonBytes, 0, length);
+                        // Form the char buffer from the buffer for the json.
+                        int charCount = Encoding.ASCII.GetChars(jsonBytes, 0, length, jsonChar, 0);
+                        // Create the string json from the char buffer.
+                        string json = new string(jsonChar, 0, charCount);
+                        
+                        try
+                        {
+                            Payload payload = JsonSerializer.Deserialize<Payload>(json, JsonOptions);
+                            FeedbackMessage = $"Sender: {payload.Sender}\nMessage: {payload.Message}";
+                            _ServerMessages.Add(payload);
+                        }
+                        catch(JsonException e)
+                        {
+                            Debug.WriteLine($"Something wrong with the payload: {json}");
+                        }
+                        i = i + PREFIX_SIZE_BYTES + length;
+                    }
+
+                    /*
                     int charCount = Encoding.ASCII.GetChars(payloadByte, 0, numBytesReceived, payloadChar, 0);
                     string payloadJson = new string(payloadChar, 0, charCount);
                     // added try/catch
@@ -166,6 +210,7 @@ namespace ChatApp.ViewModels
                     {
                         Debug.WriteLine($"Something wrong with the payload: {payloadJson}");
                     }
+                    */
                 }
             }
             catch (SocketException e)

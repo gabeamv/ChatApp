@@ -24,6 +24,7 @@ namespace ChatAppServer.ViewModels
         public const int MAX_BYTES = 1000;
         public const int MAX_CHAR = 1000;
         public const int NUM_CONNECTIONS = 8;
+        public const int PREFIX_SIZE_BYTES = 4;
         public const string INVALID_USERNAME = "";
         public ICommand RunTestServer { get; }
         private string _FeedbackMessage = "";
@@ -85,14 +86,45 @@ namespace ChatAppServer.ViewModels
                 _ = ReceiveData(clientSocket, username);
             }
         }
+        // TODO: Implement length prefixing.
         private async Task ReceiveData(Socket clientSocket, string username)
         {
-            byte[] messageByte = new byte[MAX_BYTES];
-            char[] messageChar = new char[MAX_CHAR];
-            string? message = null;
+            byte[] bytes = new byte[MAX_BYTES];
+            // char[] messageChar = new char[MAX_CHAR];
+            //string? message = null;
             int numReceivedBytes;
-            while ((numReceivedBytes = await clientSocket.ReceiveAsync(messageByte, SocketFlags.None, _cancelToken)) != 0)
+            while ((numReceivedBytes = await clientSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
             {
+                int i = 0;
+                // While loop to handle all of the received bytes.
+                while (i < numReceivedBytes)
+                {
+                    // Read the prefix to get the length of the message.
+                    byte[] lengthPrefix = new byte[PREFIX_SIZE_BYTES];
+                    Array.Copy(bytes, i, lengthPrefix, 0, PREFIX_SIZE_BYTES);
+                    int length = BitConverter.ToInt32(lengthPrefix);
+                    // Allocate buffer for the message in byte and char form.
+                    byte[] messageByte = new byte[length];
+                    char[] messageChar = new char[length];
+                    // Store the bytes of the message into the buffer for messages.
+                    Array.Copy(bytes, i + PREFIX_SIZE_BYTES, messageByte, 0, length);
+                    // Form the char buffer from the buffer for messages.
+                    int charCount = Encoding.ASCII.GetChars(messageByte, 0, length, messageChar, 0);
+                    // Create the string message from the char buffer.
+                    string message = new string(messageChar, 0, charCount);
+
+                    // Create the payload object to send to all the clients.
+                    Payload payload = new Payload(username, message);
+                    // Serialize the payload object.
+                    string payloadJson = JsonSerializer.Serialize<Payload>(payload);
+                    byte[] payloadBytes = Encoding.ASCII.GetBytes(payloadJson);
+                    // Send the response.
+                    await SendResponse(payloadBytes);
+                    // Update i to handle the next expected message.
+                    i = i + PREFIX_SIZE_BYTES + length;
+                }
+
+                /*
                 int charCount = Encoding.ASCII.GetChars(messageByte, 0, numReceivedBytes, messageChar, 0);
                 message = new string(messageChar, 0, charCount);
                 Payload payload = new Payload(username, message);
@@ -105,6 +137,7 @@ namespace ChatAppServer.ViewModels
                 Array.Clear(messageByte, 0, numReceivedBytes);
                 //await SendResponse(response);
                 await SendResponse(payloadJsonByte);
+                */
             }
             _clientConnections.TryRemove(username, out clientSocket);
             clientSocket.Shutdown(SocketShutdown.Both);
@@ -112,9 +145,17 @@ namespace ChatAppServer.ViewModels
             clientSocket.Dispose();
             FeedbackMessage = $"{username} has disconnected.";
         }
-
-        private async Task SendResponse(byte[] response)
+        // TODO: Implement length prefixing.
+        private async Task SendResponse(byte[] payloadJsonByte)
         {
+            // Get the length of the json bytes.
+            byte[] lengthPrefix = BitConverter.GetBytes(payloadJsonByte.Length);
+            // Allocate space to store the length prefix and the json bytes.
+            byte[] response = new byte[lengthPrefix.Length + payloadJsonByte.Length];
+            // Copy the length prefix and the json bytes into the response buffer.
+            Array.Copy(lengthPrefix, 0, response, 0, PREFIX_SIZE_BYTES);
+            Array.Copy(payloadJsonByte, 0, response, PREFIX_SIZE_BYTES, payloadJsonByte.Length);
+
             List<Task> sendResponse = new List<Task>();
             foreach (KeyValuePair<string, Socket> client in _clientConnections)
             {
