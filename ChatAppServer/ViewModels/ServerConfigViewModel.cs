@@ -118,6 +118,7 @@ namespace ChatAppServer.ViewModels
                     // Serialize the payload object.
                     string payloadJson = JsonSerializer.Serialize<Payload>(payload);
                     byte[] payloadBytes = Encoding.ASCII.GetBytes(payloadJson);
+                    FeedbackMessage = payloadJson;
                     // Send the response.
                     await SendResponse(payloadBytes);
                     // Update i to handle the next expected message.
