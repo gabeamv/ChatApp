@@ -9,5 +9,8 @@
         <DataTemplate DataType="{x:Type viewModels:ServerConfigViewModel}">
             <views:ServerConfigView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:StartViewModel}">
+            <views:StartView/>
+        </DataTemplate>
     </Application.Resources>
 </Application>

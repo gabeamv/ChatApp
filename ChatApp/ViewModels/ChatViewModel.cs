@@ -17,6 +17,7 @@ using System.Windows.Controls;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Diagnostics;
+using System.Net;
 
 namespace ChatApp.ViewModels
 {
@@ -176,7 +177,15 @@ namespace ChatApp.ViewModels
                         byte[] jsonBytes = new byte[length];
                         char[] jsonChar = new char[length];
                         // Store the bytes of thee json into the buffer for json bytes.
-                        Array.Copy(bytes, i + PREFIX_SIZE_BYTES, jsonBytes, 0, length);
+                        try
+                        {
+                            Array.Copy(bytes, i + PREFIX_SIZE_BYTES, jsonBytes, 0, length);
+                        }
+                        catch (ArgumentException e)
+                        {
+                            Debug.WriteLine($"Something went wrong!\nBytes received: {numBytesReceived}\nPrefix Length: {lengthPrefix.Length}\ni: {i}");
+                        }
+                        Debug.WriteLine($"Bytes received: {numBytesReceived}\nPrefix Length: {lengthPrefix.Length}\ni: {i}");
                         // Form the char buffer from the buffer for the json.
                         int charCount = Encoding.ASCII.GetChars(jsonBytes, 0, length, jsonChar, 0);
                         // Create the string json from the char buffer.
@@ -194,29 +203,13 @@ namespace ChatApp.ViewModels
                         }
                         i = i + PREFIX_SIZE_BYTES + length;
                     }
-
-                    /*
-                    int charCount = Encoding.ASCII.GetChars(payloadByte, 0, numBytesReceived, payloadChar, 0);
-                    string payloadJson = new string(payloadChar, 0, charCount);
-                    // added try/catch
-                    try
-                    {
-                        
-                        Payload payload = JsonSerializer.Deserialize<Payload>(payloadJson, JsonOptions);
-                        FeedbackMessage = $"Sender: {payload.Sender}\nMessage: {payload.Message}";
-                        _ServerMessages.Add(payload);
-                    }
-                    catch(JsonException e)
-                    {
-                        Debug.WriteLine($"Something wrong with the payload: {payloadJson}");
-                    }
-                    */
                 }
             }
             catch (SocketException e)
             {
                 
             }
+
         }
 
         public void Disconnect()
@@ -252,9 +245,13 @@ namespace ChatApp.ViewModels
         public async Task TestSpam()
         {
             byte[] spam = Encoding.ASCII.GetBytes("fuck you");
-            for (int i = 0; i < 1000; i++)
+            byte[] lengthPrefix = BitConverter.GetBytes(spam.Length);
+            byte[] spamPrefixed = new byte[lengthPrefix.Length + spam.Length];
+            Array.Copy(lengthPrefix, 0, spamPrefixed, 0, lengthPrefix.Length);
+            Array.Copy(spam, 0, spamPrefixed, lengthPrefix.Length, spam.Length);
+            for (int i = 0; i < 15; i++)
             {
-                await _chatSocket.SendAsync(spam);
+                await _chatSocket.SendAsync(spamPrefixed);
             }
         }
 

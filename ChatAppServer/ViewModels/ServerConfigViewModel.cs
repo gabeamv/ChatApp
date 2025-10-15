@@ -29,8 +29,8 @@ namespace ChatAppServer.ViewModels
         public ICommand RunTestServer { get; }
         private string _FeedbackMessage = "";
         private Socket _serverSocket;
-        private string IP = "192.168.0.119";
-        private string Port = "25566";
+        private string IP;
+        private string Port;
         private CancellationToken _cancelToken = default;
         //private ConcurrentBag<Socket> _clientConnections = new ConcurrentBag<Socket>();
         private ConcurrentDictionary<string, Socket> _clientConnections = new ConcurrentDictionary<string, Socket>();
@@ -52,8 +52,10 @@ namespace ChatAppServer.ViewModels
             set { _FeedbackMessage = value; OnPropertyChanged(); }
         }
 
-        public ServerConfigViewModel(NavService nav)
+        public ServerConfigViewModel(NavService nav, String ip, String port)
         {
+            IP = ip;
+            Port = port;
             RunTestServer = new RelayCommand(async () => await StartServer());
         }
         // TODO: socket shutdown to end server connection gracefully, then close.

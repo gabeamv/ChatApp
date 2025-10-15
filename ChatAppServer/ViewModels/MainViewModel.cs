@@ -26,7 +26,7 @@ namespace ChatAppServer.ViewModels
         public MainViewModel()
         {
             _nav = new NavService((object viewModel) => CurrentViewModel = viewModel);
-            _currentViewModel = new ServerConfigViewModel(_nav);
+            _currentViewModel = new StartViewModel(_nav);
         }
         public void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
