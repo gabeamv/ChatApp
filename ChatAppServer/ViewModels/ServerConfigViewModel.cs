@@ -16,6 +16,8 @@ using System.Collections.Concurrent;
 using ChatAppServer.Models;
 using System.Text.Json;
 using System.Windows;
+using System.Collections.ObjectModel;
+using System.Windows.Data;
 
 namespace ChatAppServer.ViewModels
 {
@@ -26,14 +28,15 @@ namespace ChatAppServer.ViewModels
         public const int NUM_CONNECTIONS = 8;
         public const int PREFIX_SIZE_BYTES = 4;
         public const string INVALID_USERNAME = "";
-        public ICommand RunTestServer { get; }
+        public ICommand StartServerCommand { get; }
         private string _FeedbackMessage = "";
         private Socket _serverSocket;
         private string IP;
         private string Port;
+        private object _userLock = new();
         private CancellationToken _cancelToken = default;
-        //private ConcurrentBag<Socket> _clientConnections = new ConcurrentBag<Socket>();
         private ConcurrentDictionary<string, Socket> _clientConnections = new ConcurrentDictionary<string, Socket>();
+        private ObservableCollection<string> _users = new ObservableCollection<string>();
         public event EventHandler<MessageSentArgs> MessageSent;
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -52,11 +55,18 @@ namespace ChatAppServer.ViewModels
             set { _FeedbackMessage = value; OnPropertyChanged(); }
         }
 
+        public ObservableCollection<string> Users
+        {
+            get { return _users; }
+            set { _users = value; OnPropertyChanged(); }
+        }
+
         public ServerConfigViewModel(NavService nav, String ip, String port)
         {
             IP = ip;
             Port = port;
-            RunTestServer = new RelayCommand(async () => await StartServer());
+            StartServerCommand = new RelayCommand(async () => await StartServer());
+            BindingOperations.EnableCollectionSynchronization(_users, _userLock);
         }
         // TODO: socket shutdown to end server connection gracefully, then close.
         private async Task StartServer()
@@ -126,26 +136,12 @@ namespace ChatAppServer.ViewModels
                     // Update i to handle the next expected message.
                     i = i + PREFIX_SIZE_BYTES + length;
                 }
-
-                /*
-                int charCount = Encoding.ASCII.GetChars(messageByte, 0, numReceivedBytes, messageChar, 0);
-                message = new string(messageChar, 0, charCount);
-                Payload payload = new Payload(username, message);
-                string payloadJson = JsonSerializer.Serialize<Payload>(payload);
-                FeedbackMessage = payloadJson;
-                byte[] payloadJsonByte = Encoding.ASCII.GetBytes(payloadJson);
-
-                //byte[] response = new byte[numReceivedBytes];
-                //Array.Copy(receivedData, response, numReceivedBytes);
-                Array.Clear(messageByte, 0, numReceivedBytes);
-                //await SendResponse(response);
-                await SendResponse(payloadJsonByte);
-                */
             }
             _clientConnections.TryRemove(username, out clientSocket);
             clientSocket.Shutdown(SocketShutdown.Both);
             clientSocket.Close();
             clientSocket.Dispose();
+            Users.Remove(username);
             FeedbackMessage = $"{username} has disconnected.";
         }
         // TODO: Implement length prefixing.
@@ -177,37 +173,12 @@ namespace ChatAppServer.ViewModels
 
             int charCount = Encoding.ASCII.GetChars(receivedUsernameBytes, 0, numReceivedBytes, usernameChar, 0);
             username = new string(usernameChar, 0, charCount);
-            if (_clientConnections.TryAdd(username, clientSocket)) return username;
-            return INVALID_USERNAME;
-        }
-
-        public async Task TestServer()
-        {
-            TcpListener testServer = new TcpListener(IPAddress.Loopback, 8000);
-            testServer.Start();
-
-            byte[] bytes = new byte[256];
-
-            FeedbackMessage = "Started Server...";
-
-            while (true)
+            if (_clientConnections.TryAdd(username, clientSocket)) 
             {
-                TcpClient client = await testServer.AcceptTcpClientAsync();
-                NetworkStream stream = client.GetStream();
-
-                int i;
-                string? message = null;
-                StringBuilder feedback = new StringBuilder();
-
-                while ((i = await stream.ReadAsync(bytes, 0, bytes.Length)) != 0)
-                {
-                    message = Encoding.ASCII.GetString(bytes, 0, i);
-                    FeedbackMessage = $"Message received: '{message}'";
-                    byte[] msg = Encoding.ASCII.GetBytes(message);
-                    stream.Write(msg, 0, msg.Length);
-                }
-
-            }
+                Users.Add(username);
+                return username;
+            } 
+            return INVALID_USERNAME;
         }
 
         public void OnPropertyChanged([CallerMemberName] string? propertyName = null)

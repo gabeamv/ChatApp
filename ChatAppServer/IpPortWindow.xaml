@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ChatAppServer"
         mc:Ignorable="d"
+        ResizeMode="NoResize"
         Title="IP and Port" Height="300" Width="250">
     <Grid>
         <StackPanel Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Center">
