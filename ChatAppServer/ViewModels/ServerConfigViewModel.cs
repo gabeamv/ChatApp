@@ -127,19 +127,28 @@ namespace ChatAppServer.ViewModels
                 History.Add(new Payload(SERVER_NAME, FeedbackMessage));
                 ServerButtonContent = _hasStartedButtonContent;
                 _hasStarted = true;
-                while (_hasStarted)
+                try
                 {
-                    Socket clientSocket = await _serverSocket.AcceptAsync();
-                    string username = await InitializeUser(clientSocket);
-                    if (username == INVALID_USERNAME)
+                    while (_hasStarted)
                     {
-                        clientSocket.Shutdown(SocketShutdown.Both);
-                        clientSocket.Close();
-                        clientSocket.Dispose();
-                        continue;
+                        if (_serverSocket is null) break;
+                        Socket clientSocket = await _serverSocket.AcceptAsync();
+                        string username = await InitializeUser(clientSocket);
+                        if (username == INVALID_USERNAME)
+                        {
+                            clientSocket.Shutdown(SocketShutdown.Both);
+                            clientSocket.Close();
+                            clientSocket.Dispose();
+                            continue;
+                        }
+                        History.Add(new Payload(SERVER_NAME, $"{username} has connected."));
+                        _ = ReceiveData(clientSocket, username);
                     }
-                    History.Add(new Payload(SERVER_NAME, $"{username} has connected."));
-                    _ = ReceiveData(clientSocket, username);
+                }
+                catch (SocketException e)
+                {
+                    FeedbackMessage = "Server stopped listening for clients.";
+                    History.Add(new Payload(SERVER_NAME, FeedbackMessage));
                 }
             }
             else
@@ -251,6 +260,12 @@ namespace ChatAppServer.ViewModels
 
         public async Task Shutdown()
         {
+            if (_serverSocket is not null)
+            {
+                _serverSocket.Close();
+                _serverSocket.Dispose();
+                _serverSocket = null;
+            }
             foreach (KeyValuePair<string, Socket> client in _clientConnections)
             {
                 client.Value.Shutdown(SocketShutdown.Both);

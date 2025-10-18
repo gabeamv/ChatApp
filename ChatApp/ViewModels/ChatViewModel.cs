@@ -36,7 +36,7 @@ namespace ChatApp.ViewModels
         private ScrollViewer _ChatScrollView = new ScrollViewer();
         private string _IP = "";
         private string _Port = "";
-        private Socket _chatSocket;
+        private Socket? _chatSocket;
         private CancellationToken _cancelToken = default;
         private object _lock = new object();
         private Task _receive;
@@ -94,7 +94,6 @@ namespace ChatApp.ViewModels
         public ChatViewModel(NavService nav)
         {
             _nav = nav;
-            Test = new RelayCommand(async () => await TestConnect());
             ServerConnectCommand = new RelayCommand(async () => await ServerConnect());
             SendMessageCommand = new RelayCommand(async () => await SendMessage());
             Spam = new RelayCommand(async () => await TestSpam());
@@ -109,6 +108,12 @@ namespace ChatApp.ViewModels
         // TODO: handle exceptions and bad input
         public async Task ServerConnect()
         {
+            if (_chatSocket != null && _chatSocket.Connected) 
+            {
+                FeedbackMessage = "Already connected to a server.";
+                return;
+            }
+            
             _chatSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             int portNum;
             if (int.TryParse(Port, out portNum))
@@ -135,6 +140,12 @@ namespace ChatApp.ViewModels
         // TODO: Implement length prefixing
         public async Task SendMessage()
         {
+            if (_chatSocket is null)
+            {
+                Message = "";
+                FeedbackMessage = "Message not sent. Not connected to a server.";
+                return;
+            }
             // Encode the user's inputted message.
             byte[] message = Encoding.ASCII.GetBytes(Message);
            
@@ -157,7 +168,8 @@ namespace ChatApp.ViewModels
             }
             catch (SocketException e)
             {
-                FeedbackMessage = "Message failed to send.";
+                Disconnect();
+                FeedbackMessage = "Message failed to send. Disconnected from server.";
             }
             Message = "";
         }
@@ -210,12 +222,20 @@ namespace ChatApp.ViewModels
                         i = i + PREFIX_SIZE_BYTES + length;
                     }
                 }
+                FeedbackMessage = "Server has been shutdown.";
+                Disconnect();
+            }
+            catch (NullReferenceException e)
+            {
+                FeedbackMessage = "Chat socket is null. Not connected to server.";
             }
             catch (SocketException e)
             {
                 FeedbackMessage = "You have been disconnected from the server.";
                 Debug.WriteLine("Socket exception has occurred");
+                Disconnect();
             }
+            
 
         }
 
@@ -226,27 +246,7 @@ namespace ChatApp.ViewModels
             _chatSocket.Shutdown(SocketShutdown.Both);
             _chatSocket.Close();
             _chatSocket.Dispose();
-        }
-
-        public async Task TestConnect()
-        {
-            Socket chatSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            CancellationToken cancellationToken = default;
-            await chatSocket.ConnectAsync("127.0.0.1", 8000, cancellationToken);
-            // Message test to the server.
-            byte[] test = Encoding.ASCII.GetBytes("Hello World, I Am Here.");
-            int bytesSent = await chatSocket.SendAsync(test);
-
-            byte[] responseBytes = new byte[512];
-            char[] responseChars = new char[512];
-            while (true)
-            {
-                int bytesReceived = await chatSocket.ReceiveAsync(responseBytes, SocketFlags.None, cancellationToken);
-                if (bytesReceived == 0) break;
-                int charCount = Encoding.ASCII.GetChars(responseBytes, 0, bytesReceived, responseChars, 0);
-                FeedbackMessage = new string(responseChars, 0, charCount);
-            }
-            chatSocket.Dispose();
+            _chatSocket = null;
         }
 
         public async Task TestSpam()
