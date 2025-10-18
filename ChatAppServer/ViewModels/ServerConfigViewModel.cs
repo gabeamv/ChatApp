@@ -29,11 +29,15 @@ namespace ChatAppServer.ViewModels
         public const int PREFIX_SIZE_BYTES = 4;
         public const string INVALID_USERNAME = "";
         public const string SERVER_NAME = "SERVER";
+
         public ICommand StartServerCommand { get; }
+        public ICommand SendServerMessageCommand { get; }
+
         private string _FeedbackMessage = "";
         private Socket _serverSocket;
         private string IP;
         private string Port;
+        private string _serverMessage = "";
         private bool _hasStarted = false;
         private object _userLock = new();
         private CancellationToken _cancelToken = default;
@@ -58,6 +62,12 @@ namespace ChatAppServer.ViewModels
             set { _FeedbackMessage = value; OnPropertyChanged(); }
         }
 
+        public string ServerMessage
+        {
+            get { return _serverMessage; }
+            set { _serverMessage = value; OnPropertyChanged(); }
+        }
+
         public ObservableCollection<string> Users
         {
             get { return _users; }
@@ -75,6 +85,7 @@ namespace ChatAppServer.ViewModels
             IP = ip;
             Port = port;
             StartServerCommand = new RelayCommand(async () => await StartServer());
+            SendServerMessageCommand = new RelayCommand(async () => await SendServerMessage());
             BindingOperations.EnableCollectionSynchronization(_users, _userLock);
         }
         // TODO: socket shutdown to end server connection gracefully, then close.
@@ -172,6 +183,25 @@ namespace ChatAppServer.ViewModels
             }
             await Task.WhenAll(sendResponse);
 
+        }
+
+        private async Task SendServerMessage()
+        {
+            Payload payload = new Payload(SERVER_NAME, ServerMessage);
+            string payloadStr = JsonSerializer.Serialize<Payload>(payload);
+            byte[] message = Encoding.ASCII.GetBytes(payloadStr);
+            byte[] lengthPrefix = BitConverter.GetBytes(message.Length);
+            byte[] messagePrefixed = new byte[lengthPrefix.Length + message.Length];
+            Array.Copy(lengthPrefix, 0, messagePrefixed, 0, lengthPrefix.Length);
+            Array.Copy(message, 0, messagePrefixed, lengthPrefix.Length, message.Length);
+            List<Task> sendServerMessage = new List<Task>();
+            foreach(KeyValuePair<string, Socket> client in _clientConnections)
+            {
+                sendServerMessage.Add(Task.Run(async () => await client.Value.SendAsync(messagePrefixed, _cancelToken)));
+            }
+            await Task.WhenAll(sendServerMessage);
+            History.Add(payload);
+            ServerMessage = "";
         }
 
         private async Task<string> InitializeUser(Socket clientSocket)

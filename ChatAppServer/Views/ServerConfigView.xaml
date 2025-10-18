@@ -34,32 +34,33 @@
 
         <Grid Grid.Row="1" Width="400" HorizontalAlignment="Left">
             <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0, 10, 0, 0">
-                
+
                 <Button Content="Start Server" Height="25" Width="100" Command="{Binding StartServerCommand}"/>
             </StackPanel>
         </Grid>
-
         <GroupBox Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Width="375" Header="History" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="0, 0, 0, 35">
-            <ListView ItemsSource="{Binding History}" ScrollViewer.CanContentScroll="True" HorizontalAlignment="Stretch" IsEnabled="False" BorderThickness="0">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock TextWrapping="Wrap">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}{0}: {1}">
-                                    <Binding Path="Sender"/>
-                                    <Binding Path="Message"/>
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+            <ScrollViewer Name="HistoryScrollViewer" HorizontalScrollBarVisibility="Disabled">
+                <ListView ItemsSource="{Binding History}" IsEnabled="False" HorizontalAlignment="Stretch" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock TextWrapping="Wrap">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}{0}: {1}">
+                                        <Binding Path="Sender"/>
+                                        <Binding Path="Message"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </ScrollViewer>
         </GroupBox>
         <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Bottom" Orientation="Horizontal">
-            <Button Margin="0, 5, 5, 5" Width="50" Height="25" Content="Send"/>
-            <TextBox Name="MessageTextBox" Height="20" Width="325" HorizontalAlignment="Center" TextWrapping="Wrap">
+            <Button Margin="0, 5, 5, 5" Width="50" Height="25" Content="Send" Command="{Binding SendServerMessageCommand}"/>
+            <TextBox Name="MessageTextBox" Height="20" Width="325" HorizontalAlignment="Center" TextWrapping="Wrap" Text="{Binding ServerMessage, UpdateSourceTrigger=PropertyChanged}">
                 <TextBox.InputBindings>
-                   
+                    <KeyBinding Key="Enter" Command="{Binding SendServerMessageCommand}"/>
                 </TextBox.InputBindings>
             </TextBox>
         </StackPanel>

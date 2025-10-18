@@ -37,12 +37,6 @@ namespace ChatApp.Views
 
         private void ContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            // Unsubscribe from old collection when the context has changed.
-            if (_currentCollection != null)
-            {
-                _currentCollection.CollectionChanged -= MessagesChanged;
-                return;
-            }
 
             // Check if the current data context is the chatviewmodel data context.
             if (DataContext is ChatViewModel chatViewModel && chatViewModel.ServerMessages is INotifyCollectionChanged observable)

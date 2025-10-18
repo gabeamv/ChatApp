@@ -1,5 +1,7 @@
-﻿using System;
+﻿using ChatAppServer.ViewModels;
+using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,9 +22,32 @@ namespace ChatAppServer.Views
     /// </summary>
     public partial class ServerConfigView : UserControl
     {
+        INotifyCollectionChanged? _historyCollection;
         public ServerConfigView()
         {
+            DataContextChanged += ContextChanged;
             InitializeComponent();
         }
+
+        private void ContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (DataContext is ServerConfigViewModel serverConfigViewModel && serverConfigViewModel.History is INotifyCollectionChanged observable)
+            {
+                _historyCollection = observable;
+                _historyCollection.CollectionChanged += HistoryChanged;
+            }
+        }
+
+        private void HistoryChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (HistoryScrollViewer.ScrollableHeight == 0) return;
+            if (e.Action == NotifyCollectionChangedAction.Add)
+            {
+                double dist = HistoryScrollViewer.ScrollableHeight - HistoryScrollViewer.VerticalOffset;
+                if (dist <= 100) Dispatcher.BeginInvoke(() => HistoryScrollViewer.ScrollToBottom());
+            }
+        }
+        
+
     }
 }
