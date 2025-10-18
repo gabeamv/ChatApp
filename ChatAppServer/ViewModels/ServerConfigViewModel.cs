@@ -28,15 +28,18 @@ namespace ChatAppServer.ViewModels
         public const int NUM_CONNECTIONS = 8;
         public const int PREFIX_SIZE_BYTES = 4;
         public const string INVALID_USERNAME = "";
+        public const string SERVER_NAME = "SERVER";
         public ICommand StartServerCommand { get; }
         private string _FeedbackMessage = "";
         private Socket _serverSocket;
         private string IP;
         private string Port;
+        private bool _hasStarted = false;
         private object _userLock = new();
         private CancellationToken _cancelToken = default;
         private ConcurrentDictionary<string, Socket> _clientConnections = new ConcurrentDictionary<string, Socket>();
         private ObservableCollection<string> _users = new ObservableCollection<string>();
+        private ObservableCollection<Payload> _history = new ObservableCollection<Payload>();
         public event EventHandler<MessageSentArgs> MessageSent;
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -61,6 +64,12 @@ namespace ChatAppServer.ViewModels
             set { _users = value; OnPropertyChanged(); }
         }
 
+        public ObservableCollection<Payload> History
+        {
+            get { return _history; }
+            set { _history = value; OnPropertyChanged(); }
+        }
+
         public ServerConfigViewModel(NavService nav, String ip, String port)
         {
             IP = ip;
@@ -83,6 +92,8 @@ namespace ChatAppServer.ViewModels
             else { return; }
             _serverSocket.Listen(NUM_CONNECTIONS);
             FeedbackMessage = "Server has started!";
+            History.Add(new Payload(SERVER_NAME, FeedbackMessage));
+            _hasStarted = true;
             while (true)
             {
                 Socket clientSocket = await _serverSocket.AcceptAsync();
@@ -94,16 +105,13 @@ namespace ChatAppServer.ViewModels
                     clientSocket.Dispose();
                     continue;
                 }
-                FeedbackMessage = $"{username} has connected.";
+                History.Add(new Payload(SERVER_NAME, $"{username} has connected."));
                 _ = ReceiveData(clientSocket, username);
             }
         }
-        // TODO: Implement length prefixing.
         private async Task ReceiveData(Socket clientSocket, string username)
         {
             byte[] bytes = new byte[MAX_BYTES];
-            // char[] messageChar = new char[MAX_CHAR];
-            //string? message = null;
             int numReceivedBytes;
             while ((numReceivedBytes = await clientSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
             {
@@ -133,6 +141,7 @@ namespace ChatAppServer.ViewModels
                     FeedbackMessage = payloadJson;
                     // Send the response.
                     await SendResponse(payloadBytes);
+                    History.Add(payload);
                     // Update i to handle the next expected message.
                     i = i + PREFIX_SIZE_BYTES + length;
                 }
@@ -143,6 +152,7 @@ namespace ChatAppServer.ViewModels
             clientSocket.Dispose();
             Users.Remove(username);
             FeedbackMessage = $"{username} has disconnected.";
+            History.Add(new Payload(SERVER_NAME, FeedbackMessage));
         }
         // TODO: Implement length prefixing.
         private async Task SendResponse(byte[] payloadJsonByte)
@@ -161,6 +171,7 @@ namespace ChatAppServer.ViewModels
                 sendResponse.Add(Task.Run(async() => await client.Value.SendAsync(response, _cancelToken)));
             }
             await Task.WhenAll(sendResponse);
+
         }
 
         private async Task<string> InitializeUser(Socket clientSocket)
