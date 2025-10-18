@@ -151,8 +151,14 @@ namespace ChatApp.ViewModels
             // Copy the lengthBuffer and the message buffer into one buffer.
             Array.Copy(lengthBuffer, 0, messagePrefixed, 0, lengthBuffer.Length);
             Array.Copy(message, 0, messagePrefixed, lengthBuffer.Length, message.Length);
-
-            int sent = await _chatSocket.SendAsync(messagePrefixed);
+            try
+            {
+                int sent = await _chatSocket.SendAsync(messagePrefixed);
+            }
+            catch (SocketException e)
+            {
+                FeedbackMessage = "Message failed to send.";
+            }
             Message = "";
         }
         // TODO: Implement length prefixing
@@ -207,7 +213,8 @@ namespace ChatApp.ViewModels
             }
             catch (SocketException e)
             {
-                
+                FeedbackMessage = "You have been disconnected from the server.";
+                Debug.WriteLine("Socket exception has occurred");
             }
 
         }

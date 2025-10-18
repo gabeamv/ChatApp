@@ -48,6 +48,9 @@ namespace ChatAppServer.Views
             }
         }
         
-
+        private void Server_Button_Click(object sender, RoutedEventArgs e)
+        {
+            
+        }
     }
 }

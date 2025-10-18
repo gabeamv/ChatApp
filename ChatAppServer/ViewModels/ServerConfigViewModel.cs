@@ -18,6 +18,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Collections.ObjectModel;
 using System.Windows.Data;
+using System.CodeDom;
 
 namespace ChatAppServer.ViewModels
 {
@@ -28,20 +29,25 @@ namespace ChatAppServer.ViewModels
         public const int NUM_CONNECTIONS = 8;
         public const int PREFIX_SIZE_BYTES = 4;
         public const string INVALID_USERNAME = "";
-        public const string SERVER_NAME = "SERVER";
+        private const string SERVER_NAME = "SERVER";
+        private const string _hasStartedButtonContent = "Stop Server";
+        private const string _hasNotStartedButtonContent = "Start Server";
 
-        public ICommand StartServerCommand { get; }
+        public ICommand StartEndServerCommand { get; }
         public ICommand SendServerMessageCommand { get; }
 
         private string _FeedbackMessage = "";
-        private Socket _serverSocket;
+        private Socket? _serverSocket;
         private string IP;
         private string Port;
         private string _serverMessage = "";
+        private string _serverButtonContent = _hasNotStartedButtonContent;
         private bool _hasStarted = false;
         private object _userLock = new();
         private CancellationToken _cancelToken = default;
+
         private ConcurrentDictionary<string, Socket> _clientConnections = new ConcurrentDictionary<string, Socket>();
+
         private ObservableCollection<string> _users = new ObservableCollection<string>();
         private ObservableCollection<Payload> _history = new ObservableCollection<Payload>();
         public event EventHandler<MessageSentArgs> MessageSent;
@@ -68,6 +74,12 @@ namespace ChatAppServer.ViewModels
             set { _serverMessage = value; OnPropertyChanged(); }
         }
 
+        public string ServerButtonContent
+        {
+            get { return _serverButtonContent; }
+            set { _serverButtonContent = value; OnPropertyChanged(); }
+        }
+
         public ObservableCollection<string> Users
         {
             get { return _users; }
@@ -80,92 +92,108 @@ namespace ChatAppServer.ViewModels
             set { _history = value; OnPropertyChanged(); }
         }
 
+        public bool HasStarted
+        {
+            get { return _hasStarted; }
+            set { _hasStarted = value; OnPropertyChanged(); }
+        }
+
         public ServerConfigViewModel(NavService nav, String ip, String port)
         {
             IP = ip;
             Port = port;
-            StartServerCommand = new RelayCommand(async () => await StartServer());
+            StartEndServerCommand = new RelayCommand(async () => await StartEndServer());
             SendServerMessageCommand = new RelayCommand(async () => await SendServerMessage());
             BindingOperations.EnableCollectionSynchronization(_users, _userLock);
         }
         // TODO: socket shutdown to end server connection gracefully, then close.
-        private async Task StartServer()
+        private async Task StartEndServer()
         {
-            FeedbackMessage = "I am definitely here.";
-            _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            long ipLong;
-            int portNum;
-            if (int.TryParse(Port, out portNum) && long.TryParse(IP.Replace(".", ""), out ipLong))
+            if (!_hasStarted)
             {
-                _serverSocket.Bind(new IPEndPoint(IPAddress.Parse(IP), portNum));
-                FeedbackMessage = "I am here";
-            }
-            else { return; }
-            _serverSocket.Listen(NUM_CONNECTIONS);
-            FeedbackMessage = "Server has started!";
-            History.Add(new Payload(SERVER_NAME, FeedbackMessage));
-            _hasStarted = true;
-            while (true)
-            {
-                Socket clientSocket = await _serverSocket.AcceptAsync();
-                string username = await InitializeUser(clientSocket);
-                if (username == INVALID_USERNAME)
+                FeedbackMessage = "I am definitely here.";
+                _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                long ipLong;
+                int portNum;
+                if (int.TryParse(Port, out portNum) && long.TryParse(IP.Replace(".", ""), out ipLong))
                 {
-                    clientSocket.Shutdown(SocketShutdown.Both);
-                    clientSocket.Close();
-                    clientSocket.Dispose();
-                    continue;
+                    _serverSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    _serverSocket.Bind(new IPEndPoint(IPAddress.Parse(IP), portNum));
+                    FeedbackMessage = "I am here";
                 }
-                History.Add(new Payload(SERVER_NAME, $"{username} has connected."));
-                _ = ReceiveData(clientSocket, username);
+                else { return; }
+                _serverSocket.Listen(NUM_CONNECTIONS);
+                FeedbackMessage = "Server has started!";
+                History.Add(new Payload(SERVER_NAME, FeedbackMessage));
+                ServerButtonContent = _hasStartedButtonContent;
+                _hasStarted = true;
+                while (_hasStarted)
+                {
+                    Socket clientSocket = await _serverSocket.AcceptAsync();
+                    string username = await InitializeUser(clientSocket);
+                    if (username == INVALID_USERNAME)
+                    {
+                        clientSocket.Shutdown(SocketShutdown.Both);
+                        clientSocket.Close();
+                        clientSocket.Dispose();
+                        continue;
+                    }
+                    History.Add(new Payload(SERVER_NAME, $"{username} has connected."));
+                    _ = ReceiveData(clientSocket, username);
+                }
+            }
+            else
+            {
+                await Shutdown();
             }
         }
         private async Task ReceiveData(Socket clientSocket, string username)
         {
             byte[] bytes = new byte[MAX_BYTES];
             int numReceivedBytes;
-            while ((numReceivedBytes = await clientSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
+            try
             {
-                int i = 0;
-                // While loop to handle all of the received bytes.
-                while (i < numReceivedBytes)
+                while ((numReceivedBytes = await clientSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
                 {
-                    // Read the prefix to get the length of the message.
-                    byte[] lengthPrefix = new byte[PREFIX_SIZE_BYTES];
-                    Array.Copy(bytes, i, lengthPrefix, 0, PREFIX_SIZE_BYTES);
-                    int length = BitConverter.ToInt32(lengthPrefix);
-                    // Allocate buffer for the message in byte and char form.
-                    byte[] messageByte = new byte[length];
-                    char[] messageChar = new char[length];
-                    // Store the bytes of the message into the buffer for messages.
-                    Array.Copy(bytes, i + PREFIX_SIZE_BYTES, messageByte, 0, length);
-                    // Form the char buffer from the buffer for messages.
-                    int charCount = Encoding.ASCII.GetChars(messageByte, 0, length, messageChar, 0);
-                    // Create the string message from the char buffer.
-                    string message = new string(messageChar, 0, charCount);
-
-                    // Create the payload object to send to all the clients.
-                    Payload payload = new Payload(username, message);
-                    // Serialize the payload object.
-                    string payloadJson = JsonSerializer.Serialize<Payload>(payload);
-                    byte[] payloadBytes = Encoding.ASCII.GetBytes(payloadJson);
-                    FeedbackMessage = payloadJson;
-                    // Send the response.
-                    await SendResponse(payloadBytes);
-                    History.Add(payload);
-                    // Update i to handle the next expected message.
-                    i = i + PREFIX_SIZE_BYTES + length;
+                    int i = 0;
+                    // While loop to handle all of the received bytes.
+                    while (i < numReceivedBytes)
+                    {
+                        // Read the prefix to get the length of the message.
+                        byte[] lengthPrefix = new byte[PREFIX_SIZE_BYTES];
+                        Array.Copy(bytes, i, lengthPrefix, 0, PREFIX_SIZE_BYTES);
+                        int length = BitConverter.ToInt32(lengthPrefix);
+                        // Allocate buffer for the message in byte and char form.
+                        byte[] messageByte = new byte[length];
+                        char[] messageChar = new char[length];
+                        // Store the bytes of the message into the buffer for messages.
+                        Array.Copy(bytes, i + PREFIX_SIZE_BYTES, messageByte, 0, length);
+                        // Form the char buffer from the buffer for messages.
+                        int charCount = Encoding.ASCII.GetChars(messageByte, 0, length, messageChar, 0);
+                        // Create the string message from the char buffer.
+                        string message = new string(messageChar, 0, charCount);
+                        // Create the payload object to send to all the clients.
+                        Payload payload = new Payload(username, message);
+                        // Serialize the payload object.
+                        string payloadJson = JsonSerializer.Serialize<Payload>(payload);
+                        byte[] payloadBytes = Encoding.ASCII.GetBytes(payloadJson);
+                        FeedbackMessage = payloadJson;
+                        // Send the response.
+                        await SendResponse(payloadBytes);
+                        History.Add(payload);
+                        // Update i to handle the next expected message.
+                        i = i + PREFIX_SIZE_BYTES + length;
+                    }
                 }
             }
+            catch (SocketException e)
+            {
+
+            }
             _clientConnections.TryRemove(username, out clientSocket);
-            clientSocket.Shutdown(SocketShutdown.Both);
-            clientSocket.Close();
-            clientSocket.Dispose();
-            Users.Remove(username);
             FeedbackMessage = $"{username} has disconnected.";
             History.Add(new Payload(SERVER_NAME, FeedbackMessage));
         }
-        // TODO: Implement length prefixing.
         private async Task SendResponse(byte[] payloadJsonByte)
         {
             // Get the length of the json bytes.
@@ -182,7 +210,6 @@ namespace ChatAppServer.ViewModels
                 sendResponse.Add(Task.Run(async() => await client.Value.SendAsync(response, _cancelToken)));
             }
             await Task.WhenAll(sendResponse);
-
         }
 
         private async Task SendServerMessage()
@@ -220,6 +247,22 @@ namespace ChatAppServer.ViewModels
                 return username;
             } 
             return INVALID_USERNAME;
+        }
+
+        public async Task Shutdown()
+        {
+            foreach (KeyValuePair<string, Socket> client in _clientConnections)
+            {
+                client.Value.Shutdown(SocketShutdown.Both);
+                client.Value.Close();
+                client.Value.Dispose();
+                Users.Remove(client.Key);
+            }
+            _clientConnections.Clear();
+            _serverSocket = null;
+            _hasStarted = false;
+            History.Clear();
+            ServerButtonContent = _hasNotStartedButtonContent;
         }
 
         public void OnPropertyChanged([CallerMemberName] string? propertyName = null)

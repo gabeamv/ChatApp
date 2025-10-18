@@ -34,8 +34,7 @@
 
         <Grid Grid.Row="1" Width="400" HorizontalAlignment="Left">
             <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0, 10, 0, 0">
-
-                <Button Content="Start Server" Height="25" Width="100" Command="{Binding StartServerCommand}"/>
+                <Button Name="Server_Button" Content="{Binding ServerButtonContent}" Height="25" Width="100" Command="{Binding StartEndServerCommand}" Click="Server_Button_Click"/>
             </StackPanel>
         </Grid>
         <GroupBox Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Width="375" Header="History" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="0, 0, 0, 35">
