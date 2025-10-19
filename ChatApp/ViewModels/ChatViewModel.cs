@@ -120,6 +120,7 @@ namespace ChatApp.ViewModels
             {
                 try
                 {
+                    FeedbackMessage = "Attempting to connect to server...";
                     await _chatSocket.ConnectAsync(IP, portNum, _cancelToken);
                 }
                 catch (SocketException e)
@@ -169,7 +170,7 @@ namespace ChatApp.ViewModels
             catch (SocketException e)
             {
                 Disconnect();
-                FeedbackMessage = "Message failed to send. Disconnected from server.";
+                FeedbackMessage = "Message failed to send. Not connected to any server right now.";
             }
             Message = "";
         }
@@ -235,8 +236,6 @@ namespace ChatApp.ViewModels
                 Debug.WriteLine("Socket exception has occurred");
                 Disconnect();
             }
-            
-
         }
 
         public void Disconnect()

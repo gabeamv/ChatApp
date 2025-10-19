@@ -19,6 +19,7 @@ using System.Windows;
 using System.Collections.ObjectModel;
 using System.Windows.Data;
 using System.CodeDom;
+using System.Diagnostics;
 
 namespace ChatAppServer.ViewModels
 {
@@ -153,15 +154,17 @@ namespace ChatAppServer.ViewModels
             }
             else
             {
-                await Shutdown();
+                Shutdown();
             }
         }
         private async Task ReceiveData(Socket clientSocket, string username)
         {
             byte[] bytes = new byte[MAX_BYTES];
             int numReceivedBytes;
+            /*
             try
             {
+            */
                 while ((numReceivedBytes = await clientSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
                 {
                     int i = 0;
@@ -194,13 +197,17 @@ namespace ChatAppServer.ViewModels
                         i = i + PREFIX_SIZE_BYTES + length;
                     }
                 }
+                /*
             }
+            /*
             catch (SocketException e)
             {
-
+                Debug.WriteLine($"{username} has disconnected.");
             }
+            */
             _clientConnections.TryRemove(username, out clientSocket);
             FeedbackMessage = $"{username} has disconnected.";
+            Users.Remove(username);
             History.Add(new Payload(SERVER_NAME, FeedbackMessage));
         }
         private async Task SendResponse(byte[] payloadJsonByte)
@@ -258,7 +265,7 @@ namespace ChatAppServer.ViewModels
             return INVALID_USERNAME;
         }
 
-        public async Task Shutdown()
+        public void Shutdown()
         {
             if (_serverSocket is not null)
             {
