@@ -161,10 +161,8 @@ namespace ChatAppServer.ViewModels
         {
             byte[] bytes = new byte[MAX_BYTES];
             int numReceivedBytes;
-            /*
             try
             {
-            */
                 while ((numReceivedBytes = await clientSocket.ReceiveAsync(bytes, SocketFlags.None, _cancelToken)) != 0)
                 {
                     int i = 0;
@@ -197,14 +195,11 @@ namespace ChatAppServer.ViewModels
                         i = i + PREFIX_SIZE_BYTES + length;
                     }
                 }
-                /*
             }
-            /*
             catch (SocketException e)
             {
-                Debug.WriteLine($"{username} has disconnected.");
+                Debug.WriteLine($"{username} has disconnected abruptly.");
             }
-            */
             _clientConnections.TryRemove(username, out clientSocket);
             FeedbackMessage = $"{username} has disconnected.";
             Users.Remove(username);
