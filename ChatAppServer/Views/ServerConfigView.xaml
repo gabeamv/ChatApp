@@ -38,11 +38,11 @@
             </StackPanel>
         </Grid>
         <GroupBox Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Width="375" Header="History" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="0, 0, 0, 35">
-            <ScrollViewer Name="HistoryScrollViewer" HorizontalScrollBarVisibility="Disabled">
-                <ListView ItemsSource="{Binding History}" IsEnabled="False" HorizontalAlignment="Stretch" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+            <ScrollViewer Name="HistoryScrollViewer" HorizontalScrollBarVisibility="Disabled" HorizontalAlignment="Stretch">
+                <ListView ItemsSource="{Binding History}" IsEnabled="False" Width="340" HorizontalAlignment="Left" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Hidden">
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock TextWrapping="Wrap">
+                            <TextBlock TextWrapping="Wrap" Width="335">
                                 <TextBlock.Text>
                                     <MultiBinding StringFormat="{}{0}: {1}">
                                         <Binding Path="Sender"/>
